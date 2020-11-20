@@ -17,7 +17,7 @@
  *
  * NEW command line interface for IP firewall facility
  *
- * $FreeBSD: head/sbin/ipfw/ipv6.c 270424 2014-08-23 17:37:18Z melifaro $
+ * $FreeBSD$
  *
  * ipv6 support
  */
@@ -41,11 +41,6 @@
 #include <netinet/icmp6.h>
 #include <netinet/ip_fw.h>
 #include <arpa/inet.h>
-
-#define	CHECK_LENGTH(v, len) do {			\
-	if ((v) < (len))				\
-		errx(EX_DATAERR, "Rule too long");	\
-	} while (0)
 
 static struct _s_x icmp6codes[] = {
       { "no-route",		ICMP6_DST_UNREACH_NOROUTE },
@@ -85,21 +80,21 @@ print_unreach6_code(uint16_t code)
  * Print the ip address contained in a command.
  */
 void
-print_ip6(struct buf_pr *bp, ipfw_insn_ip6 *cmd, char const *s)
+print_ip6(ipfw_insn_ip6 *cmd, char const *s)
 {
        struct hostent *he = NULL;
        int len = F_LEN((ipfw_insn *) cmd) - 1;
        struct in6_addr *a = &(cmd->addr6);
        char trad[255];
 
-       bprintf(bp, "%s%s ", cmd->o.len & F_NOT ? " not": "", s);
+       printf("%s%s ", cmd->o.len & F_NOT ? " not": "", s);
 
        if (cmd->o.opcode == O_IP6_SRC_ME || cmd->o.opcode == O_IP6_DST_ME) {
-	       bprintf(bp, "me6");
+	       printf("me6");
 	       return;
        }
        if (cmd->o.opcode == O_IP6) {
-	       bprintf(bp, " ip6");
+	       printf(" ip6");
 	       return;
        }
 
@@ -117,30 +112,28 @@ print_ip6(struct buf_pr *bp, ipfw_insn_ip6 *cmd, char const *s)
 	   if (mb == 128 && co.do_resolv)
 	       he = gethostbyaddr((char *)a, sizeof(*a), AF_INET6);
 	   if (he != NULL)	     /* resolved to name */
-	       bprintf(bp, "%s", he->h_name);
+	       printf("%s", he->h_name);
 	   else if (mb == 0)	   /* any */
-	       bprintf(bp, "any");
+	       printf("any");
 	   else {	  /* numeric IP followed by some kind of mask */
 	       if (inet_ntop(AF_INET6,  a, trad, sizeof( trad ) ) == NULL)
-		   bprintf(bp, "Error ntop in print_ip6\n");
-	       bprintf(bp, "%s",  trad );
+		   printf("Error ntop in print_ip6\n");
+	       printf("%s",  trad );
 	       if (mb < 0)     /* XXX not really legal... */
-		   bprintf(bp, ":%s",
+		   printf(":%s",
 		       inet_ntop(AF_INET6, &a[1], trad, sizeof(trad)));
 	       else if (mb < 128)
-		   bprintf(bp, "/%d", mb);
+		   printf("/%d", mb);
 	   }
 	   if (len > 2)
-	       bprintf(bp, ",");
+	       printf(",");
        }
 }
 
 void
-fill_icmp6types(ipfw_insn_icmp6 *cmd, char *av, int cblen)
+fill_icmp6types(ipfw_insn_icmp6 *cmd, char *av)
 {
        uint8_t type;
-
-       CHECK_LENGTH(cblen, F_INSN_SIZE(ipfw_insn_icmp6));
 
        bzero(cmd, sizeof(*cmd));
        while (*av) {
@@ -165,32 +158,32 @@ fill_icmp6types(ipfw_insn_icmp6 *cmd, char *av, int cblen)
 
 
 void
-print_icmp6types(struct buf_pr *bp, ipfw_insn_u32 *cmd)
+print_icmp6types(ipfw_insn_u32 *cmd)
 {
        int i, j;
        char sep= ' ';
 
-       bprintf(bp, " ip6 icmp6types");
+       printf(" ip6 icmp6types");
        for (i = 0; i < 7; i++)
 	       for (j=0; j < 32; ++j) {
 		       if ( (cmd->d[i] & (1 << (j))) == 0)
 			       continue;
-		       bprintf(bp, "%c%d", sep, (i*32 + j));
+		       printf("%c%d", sep, (i*32 + j));
 		       sep = ',';
 	       }
 }
 
 void
-print_flow6id(struct buf_pr *bp, ipfw_insn_u32 *cmd)
+print_flow6id( ipfw_insn_u32 *cmd)
 {
        uint16_t i, limit = cmd->o.arg1;
        char sep = ',';
 
-       bprintf(bp, " flow-id ");
+       printf(" flow-id ");
        for( i=0; i < limit; ++i) {
 	       if (i == limit - 1)
 		       sep = ' ';
-	       bprintf(bp, "%d%c", cmd->d[i], sep);
+	       printf("%d%c", cmd->d[i], sep);
        }
 }
 
@@ -265,41 +258,41 @@ fill_ext6hdr( ipfw_insn *cmd, char *av)
 }
 
 void
-print_ext6hdr(struct buf_pr *bp, ipfw_insn *cmd )
+print_ext6hdr( ipfw_insn *cmd )
 {
        char sep = ' ';
 
-       bprintf(bp, " extension header:");
+       printf(" extension header:");
        if (cmd->arg1 & EXT_FRAGMENT ) {
-	   bprintf(bp, "%cfragmentation", sep);
+	   printf("%cfragmentation", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_HOPOPTS ) {
-	   bprintf(bp, "%chop options", sep);
+	   printf("%chop options", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_ROUTING ) {
-	   bprintf(bp, "%crouting options", sep);
+	   printf("%crouting options", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_RTHDR0 ) {
-	   bprintf(bp, "%crthdr0", sep);
+	   printf("%crthdr0", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_RTHDR2 ) {
-	   bprintf(bp, "%crthdr2", sep);
+	   printf("%crthdr2", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_DSTOPTS ) {
-	   bprintf(bp, "%cdestination options", sep);
+	   printf("%cdestination options", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_AH ) {
-	   bprintf(bp, "%cauthentication header", sep);
+	   printf("%cauthentication header", sep);
 	   sep = ',';
        }
        if (cmd->arg1 & EXT_ESP ) {
-	   bprintf(bp, "%cencapsulated security payload", sep);
+	   printf("%cencapsulated security payload", sep);
        }
 }
 
@@ -334,7 +327,7 @@ lookup_host6 (char *host, struct in6_addr *ip6addr)
  * Return 1 on success, 0 on failure.
  */
 static int
-fill_ip6(ipfw_insn_ip6 *cmd, char *av, int cblen)
+fill_ip6(ipfw_insn_ip6 *cmd, char *av)
 {
 	int len = 0;
 	struct in6_addr *d = &(cmd->addr6);
@@ -343,40 +336,24 @@ fill_ip6(ipfw_insn_ip6 *cmd, char *av, int cblen)
 	 * Note d[1] points to struct in6_add r mask6 of cmd
 	 */
 
-	cmd->o.len &= ~F_LEN_MASK;	/* zero len */
+       cmd->o.len &= ~F_LEN_MASK;	/* zero len */
 
-	if (strcmp(av, "any") == 0)
-		return (1);
+       if (strcmp(av, "any") == 0)
+	       return (1);
 
 
-	if (strcmp(av, "me") == 0) {	/* Set the data for "me" opt*/
-		cmd->o.len |= F_INSN_SIZE(ipfw_insn);
-		return (1);
-	}
+       if (strcmp(av, "me") == 0) {	/* Set the data for "me" opt*/
+	       cmd->o.len |= F_INSN_SIZE(ipfw_insn);
+	       return (1);
+       }
 
-	if (strcmp(av, "me6") == 0) {	/* Set the data for "me" opt*/
-		cmd->o.len |= F_INSN_SIZE(ipfw_insn);
-		return (1);
-	}
+       if (strcmp(av, "me6") == 0) {	/* Set the data for "me" opt*/
+	       cmd->o.len |= F_INSN_SIZE(ipfw_insn);
+	       return (1);
+       }
 
-	if (strncmp(av, "table(", 6) == 0) {
-		char *p = strchr(av + 6, ',');
-		uint32_t *dm = ((ipfw_insn_u32 *)cmd)->d;
-
-		if (p)
-			*p++ = '\0';
-		cmd->o.opcode = O_IP_DST_LOOKUP;
-		cmd->o.arg1 = strtoul(av + 6, NULL, 0);
-		if (p) {
-			cmd->o.len |= F_INSN_SIZE(ipfw_insn_u32);
-			dm[0] = strtoul(p, NULL, 0);
-		} else
-			cmd->o.len |= F_INSN_SIZE(ipfw_insn);
-		return (1);
-	}
-
-	av = strdup(av);
-	while (av) {
+       av = strdup(av);
+       while (av) {
 		/*
 		 * After the address we can have '/' indicating a mask,
 		 * or ',' indicating another address follows.
@@ -385,8 +362,6 @@ fill_ip6(ipfw_insn_ip6 *cmd, char *av, int cblen)
 		char *p;
 		int masklen;
 		char md = '\0';
-
-		CHECK_LENGTH(cblen, 1 + len + 2 * F_INSN_SIZE(struct in6_addr));
 
 		if ((p = strpbrk(av, "/,")) ) {
 			md = *p;	/* save the separator */
@@ -462,7 +437,7 @@ fill_ip6(ipfw_insn_ip6 *cmd, char *av, int cblen)
  * additional flow-id we want to filter, the basic is 1
  */
 void
-fill_flow6( ipfw_insn_u32 *cmd, char *av, int cblen)
+fill_flow6( ipfw_insn_u32 *cmd, char *av )
 {
 	u_int32_t type;	 /* Current flow number */
 	u_int16_t nflow = 0;    /* Current flow index */
@@ -470,8 +445,6 @@ fill_flow6( ipfw_insn_u32 *cmd, char *av, int cblen)
 	cmd->d[0] = 0;	  /* Initializing the base number*/
 
 	while (s) {
-		CHECK_LENGTH(cblen, F_INSN_SIZE(ipfw_insn_u32) + nflow + 1);
-
 		av = strsep( &s, ",") ;
 		type = strtoul(av, &av, 0);
 		if (*av != ',' && *av != '\0')
@@ -492,15 +465,11 @@ fill_flow6( ipfw_insn_u32 *cmd, char *av, int cblen)
 }
 
 ipfw_insn *
-add_srcip6(ipfw_insn *cmd, char *av, int cblen)
+add_srcip6(ipfw_insn *cmd, char *av)
 {
 
-	fill_ip6((ipfw_insn_ip6 *)cmd, av, cblen);
-	if (cmd->opcode == O_IP_DST_SET)			/* set */
-		cmd->opcode = O_IP_SRC_SET;
-	else if (cmd->opcode == O_IP_DST_LOOKUP)		/* table */
-		cmd->opcode = O_IP_SRC_LOOKUP;
-	else if (F_LEN(cmd) == 0) {				/* any */
+	fill_ip6((ipfw_insn_ip6 *)cmd, av);
+	if (F_LEN(cmd) == 0) {				/* any */
 	} else if (F_LEN(cmd) == F_INSN_SIZE(ipfw_insn)) {	/* "me" */
 		cmd->opcode = O_IP6_SRC_ME;
 	} else if (F_LEN(cmd) ==
@@ -514,15 +483,11 @@ add_srcip6(ipfw_insn *cmd, char *av, int cblen)
 }
 
 ipfw_insn *
-add_dstip6(ipfw_insn *cmd, char *av, int cblen)
+add_dstip6(ipfw_insn *cmd, char *av)
 {
 
-	fill_ip6((ipfw_insn_ip6 *)cmd, av, cblen);
-	if (cmd->opcode == O_IP_DST_SET)			/* set */
-		;
-	else if (cmd->opcode == O_IP_DST_LOOKUP)		/* table */
-		;
-	else if (F_LEN(cmd) == 0) {				/* any */
+	fill_ip6((ipfw_insn_ip6 *)cmd, av);
+	if (F_LEN(cmd) == 0) {				/* any */
 	} else if (F_LEN(cmd) == F_INSN_SIZE(ipfw_insn)) {	/* "me" */
 		cmd->opcode = O_IP6_DST_ME;
 	} else if (F_LEN(cmd) ==

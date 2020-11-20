@@ -10,7 +10,7 @@
  *
  * This software is provided ``AS IS'' without any warranties of any kind.
  *
- * $FreeBSD: head/sbin/ipfw/dummynet.c 270424 2014-08-23 17:37:18Z melifaro $
+ * $FreeBSD$
  *
  * dummynet support
  */
@@ -56,7 +56,6 @@ static struct _s_x dummynet_params[] = {
 	{ "sched_mask",		TOK_SCHED_MASK },
 	{ "flow_mask",		TOK_FLOW_MASK },
 	{ "droptail",		TOK_DROPTAIL },
-	{ "ecn",		TOK_ECN },
 	{ "red",		TOK_RED },
 	{ "gred",		TOK_GRED },
 	{ "bw",			TOK_BW },
@@ -174,44 +173,48 @@ print_header(struct ipfw_flow_id *id)
 }
 
 static void
-list_flow(struct buf_pr *bp, struct dn_flow *ni)
+list_flow(struct dn_flow *ni, int *print)
 {
 	char buff[255];
 	struct protoent *pe = NULL;
 	struct in_addr ina;
 	struct ipfw_flow_id *id = &ni->fid;
 
+	if (*print) {
+		print_header(&ni->fid);
+		*print = 0;
+	}
 	pe = getprotobynumber(id->proto);
 		/* XXX: Should check for IPv4 flows */
-	bprintf(bp, "%3u%c", (ni->oid.id) & 0xff,
+	printf("%3u%c", (ni->oid.id) & 0xff,
 		id->extra ? '*' : ' ');
 	if (!IS_IP6_FLOW_ID(id)) {
 		if (pe)
-			bprintf(bp, "%-4s ", pe->p_name);
+			printf("%-4s ", pe->p_name);
 		else
-			bprintf(bp, "%4u ", id->proto);
+			printf("%4u ", id->proto);
 		ina.s_addr = htonl(id->src_ip);
-		bprintf(bp, "%15s/%-5d ",
+		printf("%15s/%-5d ",
 		    inet_ntoa(ina), id->src_port);
 		ina.s_addr = htonl(id->dst_ip);
-		bprintf(bp, "%15s/%-5d ",
+		printf("%15s/%-5d ",
 		    inet_ntoa(ina), id->dst_port);
 	} else {
 		/* Print IPv6 flows */
 		if (pe != NULL)
-			bprintf(bp, "%9s ", pe->p_name);
+			printf("%9s ", pe->p_name);
 		else
-			bprintf(bp, "%9u ", id->proto);
-		bprintf(bp, "%7d  %39s/%-5d ", id->flow_id6,
+			printf("%9u ", id->proto);
+		printf("%7d  %39s/%-5d ", id->flow_id6,
 		    inet_ntop(AF_INET6, &(id->src_ip6), buff, sizeof(buff)),
 		    id->src_port);
-		bprintf(bp, " %39s/%-5d ",
+		printf(" %39s/%-5d ",
 		    inet_ntop(AF_INET6, &(id->dst_ip6), buff, sizeof(buff)),
 		    id->dst_port);
 	}
-	pr_u64(bp, &ni->tot_pkts, 4);
-	pr_u64(bp, &ni->tot_bytes, 8);
-	bprintf(bp, "%2u %4u %3u",
+	pr_u64(&ni->tot_pkts, 4);
+	pr_u64(&ni->tot_bytes, 8);
+	printf("%2u %4u %3u\n",
 	    ni->length, ni->len_bytes, ni->drops);
 }
 
@@ -236,7 +239,7 @@ print_flowset_parms(struct dn_fs *fs, char *prefix)
 	else
 		plr[0] = '\0';
 
-	if (fs->flags & DN_IS_RED) {	/* RED parameters */
+	if (fs->flags & DN_IS_RED)	/* RED parameters */
 		sprintf(red,
 		    "\n\t %cRED w_q %f min_th %d max_th %d max_p %f",
 		    (fs->flags & DN_IS_GENTLE_RED) ? 'G' : ' ',
@@ -244,9 +247,7 @@ print_flowset_parms(struct dn_fs *fs, char *prefix)
 		    fs->min_th,
 		    fs->max_th,
 		    1.0 * fs->max_p / (double)(1 << SCALE_RED));
-		if (fs->flags & DN_IS_ECN)
-			strncat(red, " (ecn)", 7);
-	} else
+	else
 		sprintf(red, "droptail");
 
 	if (prefix[0]) {
@@ -299,10 +300,8 @@ list_pipes(struct dn_id *oid, struct dn_id *end)
 {
     char buf[160];	/* pending buffer */
     int toPrint = 1;	/* print header */
-    struct buf_pr bp;
 
     buf[0] = '\0';
-    bp_alloc(&bp, 4096);
     for (; oid != end; oid = O_NEXT(oid, oid->len)) {
 	if (oid->len < sizeof(*oid))
 		errx(1, "invalid oid len %d\n", oid->len);
@@ -344,12 +343,7 @@ list_pipes(struct dn_id *oid, struct dn_id *end)
 	    break;
 
 	case DN_FLOW:
-	    if (toPrint != 0) {
-		    print_header(&((struct dn_flow *)oid)->fid);
-		    toPrint = 0;
-	    }
-	    list_flow(&bp, (struct dn_flow *)oid);
-	    printf("%s\n", bp.buf);
+	    list_flow((struct dn_flow *)oid, &toPrint);
 	    break;
 
 	case DN_LINK: {
@@ -387,8 +381,6 @@ list_pipes(struct dn_id *oid, struct dn_id *end)
 	}
 	flush_buf(buf); // XXX does it really go here ?
     }
-
-    bp_free(&bp);
 }
 
 /*
@@ -767,9 +759,9 @@ load_extra_delays(const char *filename, struct dn_profile *p,
 void
 ipfw_config_pipe(int ac, char **av)
 {
-	int i;
-	u_int j;
+	int i, j;
 	char *end;
+	void *par = NULL;
 	struct dn_id *buf, *base;
 	struct dn_sch *sch = NULL;
 	struct dn_link *p = NULL;
@@ -913,6 +905,7 @@ ipfw_config_pipe(int ac, char **av)
 			 * per-flow queue, mask is dst_ip, dst_port,
 			 * src_ip, src_port, proto measured in bits
 			 */
+			par = NULL;
 
 			bzero(mask, sizeof(*mask));
 			end = NULL;
@@ -1054,15 +1047,11 @@ end_mask:
 			}
 			if ((end = strsep(&av[0], "/"))) {
 			    double max_p = strtod(end, NULL);
-			    if (max_p > 1 || max_p < 0)
-				errx(EX_DATAERR, "0 <= max_p <= 1");
+			    if (max_p > 1 || max_p <= 0)
+				errx(EX_DATAERR, "0 < max_p <= 1");
 			    fs->max_p = (int)(max_p * (1 << SCALE_RED));
 			}
 			ac--; av++;
-			break;
-
-		case TOK_ECN:
-			fs->flags |= DN_IS_ECN;
 			break;
 
 		case TOK_DROPTAIL:
@@ -1187,20 +1176,14 @@ end_mask:
 			errx(EX_DATAERR, "2 <= queue size <= %ld", limit);
 	    }
 
-	    if ((fs->flags & DN_IS_ECN) && !(fs->flags & DN_IS_RED))
-		errx(EX_USAGE, "enable red/gred for ECN");
-
 	    if (fs->flags & DN_IS_RED) {
 		size_t len;
 		int lookup_depth, avg_pkt_size;
+		double w_q;
 
-		if (!(fs->flags & DN_IS_ECN) && (fs->min_th >= fs->max_th))
+		if (fs->min_th >= fs->max_th)
 		    errx(EX_DATAERR, "min_th %d must be < than max_th %d",
 			fs->min_th, fs->max_th);
-		else if ((fs->flags & DN_IS_ECN) && (fs->min_th > fs->max_th))
-		    errx(EX_DATAERR, "min_th %d must be =< than max_th %d",
-			fs->min_th, fs->max_th);
-
 		if (fs->max_th == 0)
 		    errx(EX_DATAERR, "max_th must be > 0");
 
@@ -1222,7 +1205,6 @@ end_mask:
 			    "net.inet.ip.dummynet.red_avg_pkt_size must"
 			    " be greater than zero");
 
-#if 0 /* the following computation is now done in the kernel */
 		/*
 		 * Ticks needed for sending a medium-sized packet.
 		 * Unfortunately, when we are configuring a WF2Q+ queue, we
@@ -1232,16 +1214,19 @@ end_mask:
 		 * correct. But on the other hand, why do we want RED with
 		 * WF2Q+ ?
 		 */
+#if 0
 		if (p.bandwidth==0) /* this is a WF2Q+ queue */
 			s = 0;
 		else
 			s = (double)ck.hz * avg_pkt_size * 8 / p.bandwidth;
+#endif
 		/*
 		 * max idle time (in ticks) before avg queue size becomes 0.
 		 * NOTA:  (3/w_q) is approx the value x so that
 		 * (1-w_q)^x < 10^-3.
 		 */
 		w_q = ((double)fs->w_q) / (1 << SCALE_RED);
+#if 0 // go in kernel
 		idle = s * 3. / w_q;
 		fs->lookup_step = (int)idle / lookup_depth;
 		if (!fs->lookup_step)
@@ -1250,7 +1235,7 @@ end_mask:
 		for (t = fs->lookup_step; t > 1; --t)
 			weight *= 1 - w_q;
 		fs->lookup_weight = (int)(weight * (1 << SCALE_RED));
-#endif /* code moved in the kernel */
+#endif
 	    }
 	}
 
@@ -1302,8 +1287,8 @@ parse_range(int ac, char *av[], uint32_t *v, int len)
 			av--;
 		}
 		if (v[1] < v[0] ||
-			v[1] >= DN_MAX_ID-1 ||
-			v[1] >= DN_MAX_ID-1) {
+			v[1] < 0 || v[1] >= DN_MAX_ID-1 ||
+			v[0] < 0 || v[1] >= DN_MAX_ID-1) {
 			continue; /* invalid entry */
 		}
 		n++;
@@ -1330,12 +1315,11 @@ void
 dummynet_list(int ac, char *av[], int show_counters)
 {
 	struct dn_id *oid, *x = NULL;
-	int ret, i;
+	int ret, i, l;
 	int n; 		/* # of ranges */
-	u_int buflen, l;
-	u_int max_size;	/* largest obj passed up */
+	int buflen;
+	int max_size;	/* largest obj passed up */
 
-	(void)show_counters;	// XXX unused, but we should use it.
 	ac--;
 	av++; 		/* skip 'list' | 'show' word */
 

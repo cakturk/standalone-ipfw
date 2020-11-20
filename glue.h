@@ -240,7 +240,7 @@ struct  sockopt {
  * if not available we will use our own enum.
  * The TABLE_BASE value is used in the kernel.
  */
-#define _IPFW_SOCKOPT_BASE	100	/* 40 on freebsd */
+#define _IPFW_SOCKOPT_BASE	40	/* 40 on freebsd */
 #define	IP_FW_TABLE_ADD		(_IPFW_SOCKOPT_BASE +   0)
 #define	IP_FW_TABLE_DEL		(_IPFW_SOCKOPT_BASE +   1)
 #define	IP_FW_TABLE_FLUSH	(_IPFW_SOCKOPT_BASE +   2)
@@ -298,7 +298,7 @@ int do_connect_unix(const char *path);
 #include <sys/socket.h> /* for socklen_t */
 
 /* #define socket(a, b, c) do_connect(LOCALADDR, IPFW_PORT) */
-#define socket(a, b, c) do_connect_unix("/home/cha/src/sunnyvalley/libuinet-svn/bin/hostbr/ipfw.sock")
+#define socket(a, b, c) do_connect_unix("/var/run/ipfw.sock")
 #define setsockopt      setsockopt2
 #define getsockopt      getsockopt2
 int getsockopt2(int s, int lev, int optname, void *optval, socklen_t *optlen);

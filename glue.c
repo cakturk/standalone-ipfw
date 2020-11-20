@@ -505,17 +505,14 @@ do_connect(const char *addr, int port)
 
 	/* open the socket */
 #ifdef NETLINK
-
-struct rtnl_handle rth;
+	struct rtnl_handle rth;
 
 	conn_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
 #else
         struct sockaddr_in server;		/* server address */
 	const char *s;
 
-	printf("calling sock\n");
         conn_fd = socket(AF_INET, SOCK_STREAM, 0);
-	printf("calling end sock\n");
         if (conn_fd < 0) {
 		perror("socket");
 		return -1;
@@ -561,16 +558,20 @@ int
 do_connect_unix(const char *path)
 {
 	struct sockaddr_un sun;
-	int cli;
+	const char *s;
+	int sock;
+
+	if ((s = getenv("IPFW_HOST")))
+		path = s;
 
 	sun.sun_family = AF_UNIX;
 	strcpy(sun.sun_path, path);
 
-	if ((cli = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+	if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 		return -1;
 
-	if (connect(cli, (struct sockaddr *)&sun, sizeof(sun)))
+	if (connect(sock, (struct sockaddr *)&sun, sizeof(sun)))
 		return -1;
 
-	return cli;
+	return sock;
 }

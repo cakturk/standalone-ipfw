@@ -11,7 +11,7 @@ include ./Makefile.inc
 VPATH = .:extra
 CFLAGS += -include glue.h
 CFLAGS += -O2 -Wall -Werror
-OBJS = ipfw2.o dummynet.o main.o ipv6.o altq.o tables.o
+OBJS = ipfw2.o dummynet.o main.o ipv6.o altq.o
 
 LDFLAGS=
 LDFLAGS += -lutil # expand_number and humanize_number
