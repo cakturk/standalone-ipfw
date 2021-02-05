@@ -298,7 +298,7 @@ int do_connect_unix(const char *path);
 #include <sys/socket.h> /* for socklen_t */
 
 /* #define socket(a, b, c) do_connect(LOCALADDR, IPFW_PORT) */
-#define socket(a, b, c) do_connect_unix("/var/run/ipfw.sock")
+#define socket(a, b, c) do_connect_unix("/tmp/ipfw.sock")
 #define setsockopt      setsockopt2
 #define getsockopt      getsockopt2
 int getsockopt2(int s, int lev, int optname, void *optval, socklen_t *optlen);
