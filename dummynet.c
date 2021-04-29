@@ -38,6 +38,10 @@
 #include <netinet/ip_dummynet.h>
 #include <arpa/inet.h>	/* inet_ntoa */
 
+#include "glue.h"
+
+int humanize_number(char *_buf, size_t _len, int64_t _number,
+            const char *_suffix, int _scale, int _flags);
 
 static struct _s_x dummynet_params[] = {
 	{ "plr",		TOK_PLR },
@@ -295,6 +299,7 @@ flush_buf(char *buf)
  *	flowset; queues;
  * link i (int queue); scheduler i; si(i) { flowsets() : queues }
  */
+#define HN_AUTOSCALE            0x20
 static void
 list_pipes(struct dn_id *oid, struct dn_id *end)
 {
